@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import unicodedata
 from pathlib import Path
-from tkinter import Tk, filedialog, messagebox
 
 import pandas as pd
 
@@ -191,6 +190,8 @@ def guardar_resultado(ruta_excel: str | Path, ruta_salida: str | Path | None = N
 
 
 def main() -> None:
+    from tkinter import Tk, filedialog, messagebox
+
     root = Tk()
     root.withdraw()
 
