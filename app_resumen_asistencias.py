@@ -114,7 +114,7 @@ def leer_excel_completo(archivo_excel) -> pd.DataFrame:
     return pd.concat(datos, ignore_index=True)
 
 
-def generar_resumen(archivo_excel, cupos_default: int = 40) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     df = leer_excel_completo(archivo_excel)
     columnas = list(df.columns)
 
@@ -206,7 +206,6 @@ def generar_resumen(archivo_excel, cupos_default: int = 40) -> tuple[pd.DataFram
         )
         .reset_index()
     )
-    mensual_base["Cupos"] = int(cupos_default)
     mensual_base["Sesiones inscritas"] = mensual_base["Inscritos"] * len(columnas_clase)
     mensual_base["Presentes"] = (
         mensual_base["Sesiones_realizadas"] / len(columnas_clase)
@@ -237,7 +236,6 @@ def generar_resumen(archivo_excel, cupos_default: int = 40) -> tuple[pd.DataFram
         "Fecha actividad",
         "Dia",
         "Horario",
-        "Cupos",
         "Sesiones inscritas",
         "Sesiones_realizadas",
         "Inscritos",

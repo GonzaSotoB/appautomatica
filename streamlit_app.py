@@ -15,8 +15,6 @@ st.set_page_config(
 
 st.title("Resumen automatico de asistencias")
 
-cupos = st.number_input("Cupos por actividad", min_value=1, value=40, step=1)
-
 archivo = st.file_uploader(
     "Sube el Excel de asistencia",
     type=["xlsx", "xls"],
@@ -27,7 +25,7 @@ if archivo is None:
     st.stop()
 
 try:
-    resumen, detalle, formato_mensual = generar_resumen(archivo, cupos_default=int(cupos))
+    resumen, detalle, formato_mensual = generar_resumen(archivo)
 except Exception as exc:
     st.error(f"No se pudo procesar el archivo: {exc}")
     st.stop()
