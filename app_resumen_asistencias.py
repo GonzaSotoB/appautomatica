@@ -122,6 +122,7 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
     col_fecha = buscar_columna(columnas, ["Fecha_actividad", "Fecha actividad", "Fecha"])
     col_sucursal = buscar_columna(columnas, ["sucursal", "sede", "centro"], requerida=False)
     col_horario = buscar_columna(columnas, ["Horario", "Hora"], requerida=False)
+    col_total = buscar_columna(columnas, ["Total", "Total asistencia", "Total asistencias"], requerida=False)
     col_rut = buscar_columna(columnas, ["RUT", "Rut afiliado", "Documento"], requerida=False)
     col_nombre = buscar_columna(columnas, ["Nombre_afiliado", "Nombre afiliado", "Nombre"], requerida=False)
     columnas_clase = buscar_columnas_clase(columnas)
@@ -156,13 +157,20 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
 
     asistencia = trabajo[columnas_clase].map(valor_es_uno)
     ceros = trabajo[columnas_clase].map(valor_es_cero)
-    trabajo["Asiste"] = asistencia.any(axis=1).astype(int)
-    trabajo["Ausente_0000"] = ceros.all(axis=1).astype(int)
-    trabajo["No_asiste"] = ((trabajo["Asiste"].eq(0)) & (trabajo["Ausente_0000"].eq(1))).astype(int)
+    if col_total:
+        total_asistencia = pd.to_numeric(trabajo[col_total], errors="coerce")
+        trabajo["Asiste"] = total_asistencia.gt(0).astype(int)
+        trabajo["No_asiste"] = total_asistencia.eq(0).astype(int)
+        trabajo["Ausente_0000"] = trabajo["No_asiste"]
+        trabajo["Asistencias_mes"] = total_asistencia.fillna(0)
+    else:
+        trabajo["Asiste"] = asistencia.any(axis=1).astype(int)
+        trabajo["Ausente_0000"] = ceros.all(axis=1).astype(int)
+        trabajo["No_asiste"] = ((trabajo["Asiste"].eq(0)) & (trabajo["Ausente_0000"].eq(1))).astype(int)
+        trabajo["Asistencias_mes"] = asistencia.sum(axis=1)
     trabajo["Clasificacion_asistencia"] = "Sin clasificar"
     trabajo.loc[trabajo["Asiste"].eq(1), "Clasificacion_asistencia"] = "Presente"
     trabajo.loc[trabajo["No_asiste"].eq(1), "Clasificacion_asistencia"] = "Ausente"
-    trabajo["Asistencias_mes"] = asistencia.sum(axis=1)
 
     agrupadores = []
     if col_sucursal:

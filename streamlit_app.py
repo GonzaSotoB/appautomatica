@@ -30,16 +30,36 @@ except Exception as exc:
     st.error(f"No se pudo procesar el archivo: {exc}")
     st.stop()
 
+columnas_finales = [
+    "Clase",
+    "Hora",
+    "Dia",
+    "Inscritos",
+    "Presentes",
+    "Ausentes",
+    "Porcentaje de asistencia",
+]
+faltantes = [col for col in columnas_finales if col not in formato_mensual.columns]
+if faltantes:
+    st.error(
+        "La app online esta usando una version antigua del archivo app_resumen_asistencias.py. "
+        f"Faltan estas columnas finales: {', '.join(faltantes)}"
+    )
+    st.stop()
+
+formato_mensual = formato_mensual[columnas_finales].copy()
+
 total_inscritos = int(formato_mensual["Inscritos"].sum())
 total_asisten = int(formato_mensual["Presentes"].sum())
 total_no_asisten = int(formato_mensual["Ausentes"].sum())
 
 col1, col2, col3 = st.columns(3)
 col1.metric("Inscritos", f"{total_inscritos:,}".replace(",", "."))
-col2.metric("Asisten", f"{total_asisten:,}".replace(",", "."))
-col3.metric("No asisten", f"{total_no_asisten:,}".replace(",", "."))
+col2.metric("Presentes", f"{total_asisten:,}".replace(",", "."))
+col3.metric("Ausentes", f"{total_no_asisten:,}".replace(",", "."))
 
 st.subheader("Tabla final")
+st.caption("Regla: Total = 0 es Ausente; Total mayor que 0 es Presente.")
 st.dataframe(formato_mensual, use_container_width=True, hide_index=True)
 
 salida = BytesIO()
