@@ -17,6 +17,25 @@ DIAS_ES = {
     6: "domingo",
 }
 
+COLUMNAS_ESTANDAR_POR_POSICION = [
+    "N",
+    "Nombre_afiliado",
+    "RUT",
+    "Telefono",
+    "Email_afiliado",
+    "Actividades_Centro_club",
+    "Fecha_actividad",
+    "Horario",
+    "sucursal",
+    "mes_oferta",
+    "Clase 1",
+    "Clase 2",
+    "Clase 3",
+    "Clase 4",
+    "Total",
+    "%",
+]
+
 
 def normalizar(texto: object) -> str:
     texto = "" if texto is None else str(texto)
@@ -43,6 +62,17 @@ def sugerir_columna(columnas: list[str], palabras_clave: list[str]) -> str | Non
         if any(palabra in nombre for palabra in palabras_clave):
             return col
     return None
+
+
+def sugerir_columna_actividad(columnas: list[str]) -> str | None:
+    candidatas = []
+    for col in columnas:
+        nombre = normalizar(col)
+        if any(excluir in nombre for excluir in ["fecha", "hora", "horario", "total", "rut", "nombre"]):
+            continue
+        if any(palabra in nombre for palabra in ["actividad", "actividades", "activi", "curso", "taller"]):
+            candidatas.append(col)
+    return candidatas[0] if candidatas else None
 
 
 def buscar_columnas_clase(columnas: list[str]) -> list[str]:
@@ -92,6 +122,30 @@ def leer_excel_completo(archivo_excel) -> pd.DataFrame:
     return pd.concat(datos, ignore_index=True)
 
 
+def estandarizar_columnas_por_posicion(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    columnas_nuevas = []
+    usados = set()
+    for indice, columna in enumerate(df.columns):
+        if indice < len(COLUMNAS_ESTANDAR_POR_POSICION):
+            nombre = COLUMNAS_ESTANDAR_POR_POSICION[indice]
+        else:
+            nombre = str(columna)
+
+        if nombre in usados:
+            contador = 2
+            nombre_base = nombre
+            while f"{nombre_base}_{contador}" in usados:
+                contador += 1
+            nombre = f"{nombre_base}_{contador}"
+
+        usados.add(nombre)
+        columnas_nuevas.append(nombre)
+
+    df.columns = columnas_nuevas
+    return df
+
+
 def generar_tabla_final(
     archivo_excel,
     col_actividad: str | None = None,
@@ -100,14 +154,14 @@ def generar_tabla_final(
     col_total: str | None = None,
     col_persona_usuario: str | None = None,
 ) -> pd.DataFrame:
-    df = leer_excel_completo(archivo_excel)
+    df = estandarizar_columnas_por_posicion(leer_excel_completo(archivo_excel))
     columnas = list(df.columns)
 
     col_actividad = col_actividad or buscar_columna(
         columnas,
-        ["Actividades_Centro_club", "Actividad", "Nombre actividad"],
+        ["Actividades_Centro_club", "activi", "Actividad", "Nombre actividad"],
         requerida=False,
-    ) or sugerir_columna(columnas, ["actividad", "actividades", "curso", "clase", "taller"])
+    ) or sugerir_columna_actividad(columnas)
     col_fecha = col_fecha or buscar_columna(
         columnas,
         ["Fecha_actividad", "Fecha actividad", "Fecha"],
@@ -140,7 +194,9 @@ def generar_tabla_final(
         trabajo[col_actividad].notna() & trabajo[col_fecha].notna()
     ].copy()
 
-    trabajo[col_fecha] = pd.to_datetime(trabajo[col_fecha], errors="coerce").dt.date
+    trabajo["_fecha_actividad"] = pd.to_datetime(trabajo[col_fecha], errors="coerce").dt.date
+    trabajo["_actividad"] = trabajo[col_actividad]
+    trabajo["_horario"] = trabajo[col_horario] if col_horario else ""
     trabajo["Identificador_persona"] = trabajo[col_persona].astype("string").fillna("").str.strip()
     if col_persona_usuario is None and col_rut and col_nombre:
         sin_rut = trabajo["Identificador_persona"].eq("")
@@ -157,9 +213,7 @@ def generar_tabla_final(
         trabajo["Presente"] = asistencia.any(axis=1).astype(int)
         trabajo["Ausente"] = asistencia.sum(axis=1).eq(0).astype(int)
 
-    agrupadores = [col_fecha, col_actividad]
-    if col_horario:
-        agrupadores.append(col_horario)
+    agrupadores = ["_fecha_actividad", "_actividad", "_horario"]
 
     persona_clase = (
         trabajo.groupby(agrupadores + ["Identificador_persona"], dropna=False)
@@ -180,9 +234,9 @@ def generar_tabla_final(
     tabla["Porcentaje de asistencia"] = (
         tabla["Presentes"] / tabla["Inscritos"].replace(0, pd.NA) * 100
     ).fillna(0).round().astype(int)
-    tabla["Clase"] = tabla[col_actividad]
-    tabla["Hora"] = [formato_hora(v) for v in (tabla[col_horario] if col_horario else [""] * len(tabla))]
-    tabla["Dia"] = tabla[col_fecha].map(
+    tabla["Clase"] = tabla["_actividad"]
+    tabla["Hora"] = [formato_hora(v) for v in tabla["_horario"]]
+    tabla["Dia"] = tabla["_fecha_actividad"].map(
         lambda fecha: "" if pd.isna(fecha) else DIAS_ES.get(pd.Timestamp(fecha).weekday(), "")
     )
 
@@ -192,11 +246,11 @@ def generar_tabla_final(
 
 
 def detectar_columnas(archivo_excel) -> tuple[pd.DataFrame, dict[str, str | None]]:
-    df = leer_excel_completo(archivo_excel)
+    df = estandarizar_columnas_por_posicion(leer_excel_completo(archivo_excel))
     columnas = list(df.columns)
     deteccion = {
-        "actividad": buscar_columna(columnas, ["Actividades_Centro_club", "Actividad", "Nombre actividad"], requerida=False)
-        or sugerir_columna(columnas, ["actividad", "actividades", "curso", "clase", "taller"]),
+        "actividad": buscar_columna(columnas, ["Actividades_Centro_club", "activi", "Actividad", "Nombre actividad"], requerida=False)
+        or sugerir_columna_actividad(columnas),
         "fecha": buscar_columna(columnas, ["Fecha_actividad", "Fecha actividad", "Fecha"], requerida=False)
         or sugerir_columna(columnas, ["fecha"]),
         "hora": buscar_columna(columnas, ["Horario", "Hora"], requerida=False),
