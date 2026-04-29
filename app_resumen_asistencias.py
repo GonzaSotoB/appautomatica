@@ -7,6 +7,17 @@ from pathlib import Path
 import pandas as pd
 
 
+DIAS_ES = {
+    0: "lunes",
+    1: "martes",
+    2: "miercoles",
+    3: "jueves",
+    4: "viernes",
+    5: "sabado",
+    6: "domingo",
+}
+
+
 def normalizar(texto: object) -> str:
     texto = "" if texto is None else str(texto)
     texto = unicodedata.normalize("NFKD", texto)
@@ -62,6 +73,31 @@ def valor_es_cero(valor: object) -> bool:
         return False
 
 
+def formato_hora(valor: object) -> str:
+    if pd.isna(valor):
+        return ""
+    if hasattr(valor, "strftime"):
+        return valor.strftime("%H:%M")
+    texto = str(valor).strip()
+    if not texto:
+        return ""
+    match = re.search(r"(\d{1,2}):(\d{2})", texto)
+    if match:
+        return f"{int(match.group(1)):02d}:{match.group(2)}"
+    return texto
+
+
+def nombre_reporte(actividad: object, fecha: object, horario: object) -> str:
+    actividad_txt = str(actividad).strip().capitalize()
+    if pd.isna(fecha):
+        dia = ""
+    else:
+        dia = DIAS_ES.get(pd.Timestamp(fecha).weekday(), "")
+    hora = formato_hora(horario)
+    partes = [actividad_txt, dia, hora]
+    return " ".join(parte for parte in partes if parte).strip()
+
+
 def leer_excel_completo(archivo_excel) -> pd.DataFrame:
     hojas = pd.read_excel(archivo_excel, sheet_name=None)
     datos = []
@@ -78,13 +114,14 @@ def leer_excel_completo(archivo_excel) -> pd.DataFrame:
     return pd.concat(datos, ignore_index=True)
 
 
-def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame]:
+def generar_resumen(archivo_excel, cupos_default: int = 40) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     df = leer_excel_completo(archivo_excel)
     columnas = list(df.columns)
 
     col_actividad = buscar_columna(columnas, ["Actividades_Centro_club", "Actividad", "Nombre actividad"])
     col_fecha = buscar_columna(columnas, ["Fecha_actividad", "Fecha actividad", "Fecha"])
     col_sucursal = buscar_columna(columnas, ["sucursal", "sede", "centro"], requerida=False)
+    col_horario = buscar_columna(columnas, ["Horario", "Hora"], requerida=False)
     col_rut = buscar_columna(columnas, ["RUT", "Rut afiliado", "Documento"], requerida=False)
     col_nombre = buscar_columna(columnas, ["Nombre_afiliado", "Nombre afiliado", "Nombre"], requerida=False)
     columnas_clase = buscar_columnas_clase(columnas)
@@ -120,6 +157,7 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame]:
     trabajo["Asiste"] = asistencia.any(axis=1).astype(int)
     trabajo["No_asiste"] = (~asistencia.any(axis=1)).astype(int)
     trabajo["Ausente_0000"] = ceros.all(axis=1).astype(int)
+    trabajo["Asistencias_mes"] = asistencia.sum(axis=1)
 
     agrupadores = []
     if col_sucursal:
@@ -132,6 +170,7 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame]:
             Asiste=("Asiste", "max"),
             No_asiste=("No_asiste", "min"),
             Ausente_0000=("Ausente_0000", "max"),
+            Asistencias_mes=("Asistencias_mes", "sum"),
         )
         .reset_index()
     )
@@ -143,6 +182,7 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame]:
             total_asisten=("Asiste", "sum"),
             total_no_asisten=("No_asiste", "sum"),
             ausentes_0000=("Ausente_0000", "sum"),
+            asistencias_mes=("Asistencias_mes", "sum"),
         )
         .reset_index()
     )
@@ -150,6 +190,64 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame]:
         resumen["total_asisten"] / resumen["inscritos"]
     ).fillna(0)
     resumen["columnas_asistencia_usadas"] = ", ".join(map(str, columnas_clase))
+
+    agrupadores_mensual = []
+    if col_sucursal:
+        agrupadores_mensual.append(col_sucursal)
+    agrupadores_mensual.extend([col_fecha, col_actividad])
+    if col_horario:
+        agrupadores_mensual.append(col_horario)
+
+    mensual_base = (
+        trabajo.groupby(agrupadores_mensual, dropna=False)
+        .agg(
+            Inscritos=(col_persona, "nunique"),
+            Sesiones_realizadas=("Asistencias_mes", "sum"),
+        )
+        .reset_index()
+    )
+    mensual_base["Cupos"] = int(cupos_default)
+    mensual_base["Sesiones inscritas"] = mensual_base["Inscritos"] * len(columnas_clase)
+    mensual_base["Presentes"] = (
+        mensual_base["Sesiones_realizadas"] / len(columnas_clase)
+    ).round().astype(int)
+    mensual_base["Ausentes"] = mensual_base["Inscritos"] - mensual_base["Presentes"]
+    mensual_base["Prom. % de asistencia"] = (
+        mensual_base["Presentes"] / mensual_base["Inscritos"] * 100
+    ).fillna(0).round().astype(int)
+    mensual_base["Fecha actividad"] = mensual_base[col_fecha]
+    mensual_base["Dia"] = mensual_base[col_fecha].map(
+        lambda fecha: "" if pd.isna(fecha) else DIAS_ES.get(pd.Timestamp(fecha).weekday(), "")
+    )
+    mensual_base["Horario"] = [
+        formato_hora(valor) for valor in (mensual_base[col_horario] if col_horario else [""] * len(mensual_base))
+    ]
+    horario_para_nombre = mensual_base[col_horario] if col_horario else [""] * len(mensual_base)
+    mensual_base["Actividad"] = [
+        nombre_reporte(act, fecha, hora)
+        for act, fecha, hora in zip(
+            mensual_base[col_actividad],
+            mensual_base[col_fecha],
+            horario_para_nombre,
+        )
+    ]
+
+    columnas_formato = [
+        "Actividad",
+        "Fecha actividad",
+        "Dia",
+        "Horario",
+        "Cupos",
+        "Sesiones inscritas",
+        "Sesiones_realizadas",
+        "Inscritos",
+        "Presentes",
+        "Ausentes",
+        "Prom. % de asistencia",
+    ]
+    formato_mensual = mensual_base[columnas_formato].rename(
+        columns={"Actividad": "Centro club virtual", "Sesiones_realizadas": "Sesiones realizadas"}
+    )
 
     columnas_detalle = agrupadores + [col_persona]
     if col_nombre and col_nombre not in columnas_detalle:
@@ -160,7 +258,7 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame]:
         + ["Clasificacion_asistencia", "Asiste", "No_asiste", "Ausente_0000"]
     ].copy()
 
-    return resumen, detalle
+    return resumen, detalle, formato_mensual
 
 
 def guardar_resultado(ruta_excel: str | Path, ruta_salida: str | Path | None = None) -> Path:
@@ -169,17 +267,23 @@ def guardar_resultado(ruta_excel: str | Path, ruta_salida: str | Path | None = N
         ruta_salida = ruta_excel.with_name(f"{ruta_excel.stem}_RESUMEN.xlsx")
     ruta_salida = Path(ruta_salida)
 
-    resumen, detalle = generar_resumen(ruta_excel)
+    resumen, detalle, formato_mensual = generar_resumen(ruta_excel)
     with pd.ExcelWriter(ruta_salida, engine="openpyxl") as writer:
+        formato_mensual.to_excel(writer, index=False, sheet_name="Formato_mensual")
         resumen.to_excel(writer, index=False, sheet_name="Resumen")
         detalle.to_excel(writer, index=False, sheet_name="Detalle_clasificacion")
 
-        ws = writer.sheets["Resumen"]
+        ws = writer.sheets["Formato_mensual"]
         for cell in ws[1]:
             cell.style = "Headline 3"
         for column_cells in ws.columns:
             width = min(max(len(str(cell.value or "")) for cell in column_cells) + 2, 45)
             ws.column_dimensions[column_cells[0].column_letter].width = width
+
+        ws_resumen = writer.sheets["Resumen"]
+        for column_cells in ws_resumen.columns:
+            width = min(max(len(str(cell.value or "")) for cell in column_cells) + 2, 45)
+            ws_resumen.column_dimensions[column_cells[0].column_letter].width = width
 
         ws_detalle = writer.sheets["Detalle_clasificacion"]
         for column_cells in ws_detalle.columns:

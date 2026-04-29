@@ -10,11 +10,12 @@ from app_resumen_asistencias import generar_resumen
 
 st.set_page_config(
     page_title="Resumen de asistencias",
-    page_icon="📊",
     layout="wide",
 )
 
 st.title("Resumen automatico de asistencias")
+
+cupos = st.number_input("Cupos por actividad", min_value=1, value=40, step=1)
 
 archivo = st.file_uploader(
     "Sube el Excel de asistencia",
@@ -26,7 +27,7 @@ if archivo is None:
     st.stop()
 
 try:
-    resumen, detalle = generar_resumen(archivo)
+    resumen, detalle, formato_mensual = generar_resumen(archivo, cupos_default=int(cupos))
 except Exception as exc:
     st.error(f"No se pudo procesar el archivo: {exc}")
     st.stop()
@@ -40,7 +41,10 @@ col1.metric("Inscritos", f"{total_inscritos:,}".replace(",", "."))
 col2.metric("Asisten", f"{total_asisten:,}".replace(",", "."))
 col3.metric("No asisten", f"{total_no_asisten:,}".replace(",", "."))
 
-st.subheader("Resumen")
+st.subheader("Formato mensual")
+st.dataframe(formato_mensual, use_container_width=True, hide_index=True)
+
+st.subheader("Resumen de control")
 st.dataframe(resumen, use_container_width=True, hide_index=True)
 
 with st.expander("Ver detalle persona por persona"):
@@ -48,6 +52,7 @@ with st.expander("Ver detalle persona por persona"):
 
 salida = BytesIO()
 with pd.ExcelWriter(salida, engine="openpyxl") as writer:
+    formato_mensual.to_excel(writer, index=False, sheet_name="Formato_mensual")
     resumen.to_excel(writer, index=False, sheet_name="Resumen")
     detalle.to_excel(writer, index=False, sheet_name="Detalle_clasificacion")
 
