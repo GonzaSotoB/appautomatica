@@ -134,6 +134,12 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
 
     col_persona = "Identificador_persona"
     trabajo = df.copy()
+    filas_vacias = (
+        trabajo[[col_actividad, col_fecha] + columnas_clase]
+        .isna()
+        .all(axis=1)
+    )
+    trabajo = trabajo.loc[~filas_vacias].copy()
     trabajo[col_fecha] = pd.to_datetime(trabajo[col_fecha], errors="coerce").dt.date
     trabajo[col_persona] = ""
     if col_rut:
@@ -150,12 +156,12 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
 
     asistencia = trabajo[columnas_clase].map(valor_es_uno)
     ceros = trabajo[columnas_clase].map(valor_es_cero)
-    trabajo["Clasificacion_asistencia"] = asistencia.any(axis=1).map(
-        {True: "Asiste", False: "No asiste"}
-    )
     trabajo["Asiste"] = asistencia.any(axis=1).astype(int)
-    trabajo["No_asiste"] = (~asistencia.any(axis=1)).astype(int)
     trabajo["Ausente_0000"] = ceros.all(axis=1).astype(int)
+    trabajo["No_asiste"] = ((trabajo["Asiste"].eq(0)) & (trabajo["Ausente_0000"].eq(1))).astype(int)
+    trabajo["Clasificacion_asistencia"] = "Sin clasificar"
+    trabajo.loc[trabajo["Asiste"].eq(1), "Clasificacion_asistencia"] = "Presente"
+    trabajo.loc[trabajo["No_asiste"].eq(1), "Clasificacion_asistencia"] = "Ausente"
     trabajo["Asistencias_mes"] = asistencia.sum(axis=1)
 
     agrupadores = []
@@ -167,12 +173,14 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
         trabajo.groupby(agrupadores + [col_persona], dropna=False)
         .agg(
             Asiste=("Asiste", "max"),
-            No_asiste=("No_asiste", "min"),
-            Ausente_0000=("Ausente_0000", "max"),
+            Ausente_0000=("Ausente_0000", "min"),
             Asistencias_mes=("Asistencias_mes", "sum"),
         )
         .reset_index()
     )
+    persona_actividad["No_asiste"] = (
+        persona_actividad["Asiste"].eq(0) & persona_actividad["Ausente_0000"].eq(1)
+    ).astype(int)
 
     resumen = (
         persona_actividad.groupby(agrupadores, dropna=False)
@@ -201,10 +209,13 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
         trabajo.groupby(agrupadores_mensual + [col_persona], dropna=False)
         .agg(
             Asiste=("Asiste", "max"),
+            Ausente_0000=("Ausente_0000", "min"),
         )
         .reset_index()
     )
-    persona_mensual["No_asiste"] = 1 - persona_mensual["Asiste"]
+    persona_mensual["No_asiste"] = (
+        persona_mensual["Asiste"].eq(0) & persona_mensual["Ausente_0000"].eq(1)
+    ).astype(int)
 
     mensual_base = (
         persona_mensual.groupby(agrupadores_mensual, dropna=False)
@@ -263,25 +274,12 @@ def guardar_resultado(ruta_excel: str | Path, ruta_salida: str | Path | None = N
     resumen, detalle, formato_mensual = generar_resumen(ruta_excel)
     with pd.ExcelWriter(ruta_salida, engine="openpyxl") as writer:
         formato_mensual.to_excel(writer, index=False, sheet_name="Formato_mensual")
-        resumen.to_excel(writer, index=False, sheet_name="Resumen")
-        detalle.to_excel(writer, index=False, sheet_name="Detalle_clasificacion")
-
         ws = writer.sheets["Formato_mensual"]
         for cell in ws[1]:
             cell.style = "Headline 3"
         for column_cells in ws.columns:
             width = min(max(len(str(cell.value or "")) for cell in column_cells) + 2, 45)
             ws.column_dimensions[column_cells[0].column_letter].width = width
-
-        ws_resumen = writer.sheets["Resumen"]
-        for column_cells in ws_resumen.columns:
-            width = min(max(len(str(cell.value or "")) for cell in column_cells) + 2, 45)
-            ws_resumen.column_dimensions[column_cells[0].column_letter].width = width
-
-        ws_detalle = writer.sheets["Detalle_clasificacion"]
-        for column_cells in ws_detalle.columns:
-            width = min(max(len(str(cell.value or "")) for cell in column_cells) + 2, 45)
-            ws_detalle.column_dimensions[column_cells[0].column_letter].width = width
 
     return ruta_salida
 
