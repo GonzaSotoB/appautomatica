@@ -150,8 +150,6 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
 
     asistencia = trabajo[columnas_clase].map(valor_es_uno)
     ceros = trabajo[columnas_clase].map(valor_es_cero)
-    asistencia_valida = asistencia | ceros
-
     trabajo["Clasificacion_asistencia"] = asistencia.any(axis=1).map(
         {True: "Asiste", False: "No asiste"}
     )
@@ -159,7 +157,6 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
     trabajo["No_asiste"] = (~asistencia.any(axis=1)).astype(int)
     trabajo["Ausente_0000"] = ceros.all(axis=1).astype(int)
     trabajo["Asistencias_mes"] = asistencia.sum(axis=1)
-    trabajo["Sesiones_inscritas_persona"] = asistencia_valida.sum(axis=1)
 
     agrupadores = []
     if col_sucursal:
@@ -200,38 +197,26 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
     if col_horario:
         agrupadores_mensual.append(col_horario)
 
-    mensual_base = (
-        trabajo.groupby(agrupadores_mensual, dropna=False)
+    persona_mensual = (
+        trabajo.groupby(agrupadores_mensual + [col_persona], dropna=False)
         .agg(
-            Inscritos=(col_persona, "nunique"),
-            Sesiones_realizadas=("Asistencias_mes", "sum"),
-            Sesiones_inscritas=("Sesiones_inscritas_persona", "sum"),
+            Asiste=("Asiste", "max"),
         )
         .reset_index()
     )
+    persona_mensual["No_asiste"] = 1 - persona_mensual["Asiste"]
 
-    sesiones_validas = (
-        trabajo.groupby(agrupadores_mensual, dropna=False)
-        .apply(lambda grupo: int(asistencia_valida.loc[grupo.index].any(axis=0).sum()), include_groups=False)
-        .reset_index(name="Sesiones_validas")
+    mensual_base = (
+        persona_mensual.groupby(agrupadores_mensual, dropna=False)
+        .agg(
+            Inscritos=(col_persona, "nunique"),
+            Presentes=("Asiste", "sum"),
+            Ausentes=("No_asiste", "sum"),
+        )
+        .reset_index()
     )
-    mensual_base = mensual_base.merge(sesiones_validas, on=agrupadores_mensual, how="left")
-    mensual_base["Sesiones inscritas"] = mensual_base["Sesiones_inscritas"].astype(int)
-    divisor_sesiones = mensual_base["Sesiones_validas"].astype(float).mask(
-        mensual_base["Sesiones_validas"].eq(0)
-    )
-    divisor_inscritas = mensual_base["Sesiones inscritas"].astype(float).mask(
-        mensual_base["Sesiones inscritas"].eq(0)
-    )
-    mensual_base["Presentes"] = (
-        mensual_base["Sesiones_realizadas"] / divisor_sesiones
-    ).fillna(0).round().astype(int)
-    mensual_base["Ausentes"] = (
-        (mensual_base["Sesiones inscritas"] - mensual_base["Sesiones_realizadas"])
-        / divisor_sesiones
-    ).fillna(0).round().astype(int)
     mensual_base["Prom. % de asistencia"] = (
-        mensual_base["Sesiones_realizadas"] / divisor_inscritas * 100
+        mensual_base["Presentes"] / mensual_base["Inscritos"].replace(0, pd.NA) * 100
     ).fillna(0).round().astype(int)
     mensual_base["Fecha actividad"] = mensual_base[col_fecha]
     mensual_base["Dia"] = mensual_base[col_fecha].map(
@@ -257,15 +242,13 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
         "Fecha actividad",
         "Dia",
         "Horario",
-        "Sesiones inscritas",
-        "Sesiones_realizadas",
         "Inscritos",
         "Presentes",
         "Ausentes",
         "Prom. % de asistencia",
     ]
     formato_mensual = mensual_base[columnas_formato].rename(
-        columns={"Actividad": "Centro club virtual", "Sesiones_realizadas": "Sesiones realizadas"}
+        columns={"Actividad": "Centro club virtual"}
     )
 
     columnas_detalle = agrupadores + [col_persona]
