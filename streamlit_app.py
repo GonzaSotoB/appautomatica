@@ -37,6 +37,14 @@ def buscar_columna(columnas: list[str], opciones: list[str], requerida: bool = T
     return None
 
 
+def sugerir_columna(columnas: list[str], palabras_clave: list[str]) -> str | None:
+    for col in columnas:
+        nombre = normalizar(col)
+        if any(palabra in nombre for palabra in palabras_clave):
+            return col
+    return None
+
+
 def buscar_columnas_clase(columnas: list[str]) -> list[str]:
     clases = []
     for col in columnas:
@@ -84,22 +92,42 @@ def leer_excel_completo(archivo_excel) -> pd.DataFrame:
     return pd.concat(datos, ignore_index=True)
 
 
-def generar_tabla_final(archivo_excel) -> pd.DataFrame:
+def generar_tabla_final(
+    archivo_excel,
+    col_actividad: str | None = None,
+    col_fecha: str | None = None,
+    col_horario: str | None = None,
+    col_total: str | None = None,
+    col_persona_usuario: str | None = None,
+) -> pd.DataFrame:
     df = leer_excel_completo(archivo_excel)
     columnas = list(df.columns)
 
-    col_actividad = buscar_columna(columnas, ["Actividades_Centro_club", "Actividad", "Nombre actividad"])
-    col_fecha = buscar_columna(columnas, ["Fecha_actividad", "Fecha actividad", "Fecha"])
-    col_horario = buscar_columna(columnas, ["Horario", "Hora"], requerida=False)
-    col_total = buscar_columna(columnas, ["Total", "Total asistencia", "Total asistencias"], requerida=False)
+    col_actividad = col_actividad or buscar_columna(
+        columnas,
+        ["Actividades_Centro_club", "Actividad", "Nombre actividad"],
+        requerida=False,
+    ) or sugerir_columna(columnas, ["actividad", "actividades", "curso", "clase", "taller"])
+    col_fecha = col_fecha or buscar_columna(
+        columnas,
+        ["Fecha_actividad", "Fecha actividad", "Fecha"],
+        requerida=False,
+    ) or sugerir_columna(columnas, ["fecha"])
+    col_horario = col_horario or buscar_columna(columnas, ["Horario", "Hora"], requerida=False)
+    col_total = col_total or buscar_columna(columnas, ["Total", "Total asistencia", "Total asistencias"], requerida=False)
     col_rut = buscar_columna(columnas, ["RUT", "Rut afiliado", "Documento"], requerida=False)
     col_nombre = buscar_columna(columnas, ["Nombre_afiliado", "Nombre afiliado", "Nombre"], requerida=False)
+    col_persona = col_persona_usuario or col_rut or col_nombre
     columnas_clase = buscar_columnas_clase(columnas)
 
+    if not col_actividad:
+        raise ValueError("No se pudo identificar la columna de actividad.")
+    if not col_fecha:
+        raise ValueError("No se pudo identificar la columna de fecha.")
     if not col_total and not columnas_clase:
         raise ValueError("No se encontro la columna Total ni columnas tipo Clase 1, Clase 2, etc.")
-    if not col_rut and not col_nombre:
-        raise ValueError("No se encontro una columna para identificar personas, por ejemplo RUT o Nombre_afiliado.")
+    if not col_persona:
+        raise ValueError("No se encontro una columna para identificar personas, por ejemplo RUT o Nombre.")
 
     trabajo = df.copy()
     columnas_base = [col_actividad, col_fecha]
@@ -113,14 +141,10 @@ def generar_tabla_final(archivo_excel) -> pd.DataFrame:
     ].copy()
 
     trabajo[col_fecha] = pd.to_datetime(trabajo[col_fecha], errors="coerce").dt.date
-    trabajo["Identificador_persona"] = ""
-    if col_rut:
-        trabajo["Identificador_persona"] = trabajo[col_rut].astype("string").fillna("").str.strip()
-    if col_nombre:
+    trabajo["Identificador_persona"] = trabajo[col_persona].astype("string").fillna("").str.strip()
+    if col_persona_usuario is None and col_rut and col_nombre:
         sin_rut = trabajo["Identificador_persona"].eq("")
-        trabajo.loc[sin_rut, "Identificador_persona"] = (
-            trabajo.loc[sin_rut, col_nombre].astype("string").fillna("").str.strip()
-        )
+        trabajo.loc[sin_rut, "Identificador_persona"] = trabajo.loc[sin_rut, col_nombre].astype("string").fillna("").str.strip()
     sin_id = trabajo["Identificador_persona"].eq("")
     trabajo.loc[sin_id, "Identificador_persona"] = "fila_" + (trabajo.index[sin_id] + 2).astype(str)
 
@@ -167,6 +191,22 @@ def generar_tabla_final(archivo_excel) -> pd.DataFrame:
     ]
 
 
+def detectar_columnas(archivo_excel) -> tuple[pd.DataFrame, dict[str, str | None]]:
+    df = leer_excel_completo(archivo_excel)
+    columnas = list(df.columns)
+    deteccion = {
+        "actividad": buscar_columna(columnas, ["Actividades_Centro_club", "Actividad", "Nombre actividad"], requerida=False)
+        or sugerir_columna(columnas, ["actividad", "actividades", "curso", "clase", "taller"]),
+        "fecha": buscar_columna(columnas, ["Fecha_actividad", "Fecha actividad", "Fecha"], requerida=False)
+        or sugerir_columna(columnas, ["fecha"]),
+        "hora": buscar_columna(columnas, ["Horario", "Hora"], requerida=False),
+        "total": buscar_columna(columnas, ["Total", "Total asistencia", "Total asistencias"], requerida=False),
+        "persona": buscar_columna(columnas, ["RUT", "Rut afiliado", "Documento"], requerida=False)
+        or buscar_columna(columnas, ["Nombre_afiliado", "Nombre afiliado", "Nombre"], requerida=False),
+    }
+    return df, deteccion
+
+
 def main() -> None:
     import streamlit as st
 
@@ -180,9 +220,55 @@ def main() -> None:
         st.stop()
 
     try:
-        tabla_final = generar_tabla_final(archivo)
+        df_preview, deteccion = detectar_columnas(archivo)
     except Exception as exc:
         st.error(f"No se pudo procesar el archivo: {exc}")
+        st.stop()
+
+    columnas = list(df_preview.columns)
+    opciones_requeridas = columnas
+    opciones_opcionales = [""] + columnas
+
+    with st.expander("Revisar o cambiar columnas detectadas", expanded=False):
+        st.write("Si una columna viene con otro nombre, elige aqui cual corresponde.")
+        col_actividad = st.selectbox(
+            "Columna de clase / actividad",
+            opciones_requeridas,
+            index=opciones_requeridas.index(deteccion["actividad"]) if deteccion["actividad"] in opciones_requeridas else 0,
+        )
+        col_fecha = st.selectbox(
+            "Columna de fecha",
+            opciones_requeridas,
+            index=opciones_requeridas.index(deteccion["fecha"]) if deteccion["fecha"] in opciones_requeridas else 0,
+        )
+        col_horario = st.selectbox(
+            "Columna de hora",
+            opciones_opcionales,
+            index=opciones_opcionales.index(deteccion["hora"]) if deteccion["hora"] in opciones_opcionales else 0,
+        )
+        col_total = st.selectbox(
+            "Columna total de asistencia",
+            opciones_opcionales,
+            index=opciones_opcionales.index(deteccion["total"]) if deteccion["total"] in opciones_opcionales else 0,
+        )
+        col_persona = st.selectbox(
+            "Columna para identificar persona",
+            opciones_requeridas,
+            index=opciones_requeridas.index(deteccion["persona"]) if deteccion["persona"] in opciones_requeridas else 0,
+        )
+
+    try:
+        archivo.seek(0)
+        tabla_final = generar_tabla_final(
+            archivo,
+            col_actividad=col_actividad,
+            col_fecha=col_fecha,
+            col_horario=col_horario or None,
+            col_total=col_total or None,
+            col_persona_usuario=col_persona,
+        )
+    except Exception as exc:
+        st.error(f"No se pudo generar la tabla: {exc}")
         st.stop()
 
     col1, col2, col3 = st.columns(3)
