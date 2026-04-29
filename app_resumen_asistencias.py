@@ -225,30 +225,21 @@ def generar_resumen(archivo_excel) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
     mensual_base["Horario"] = [
         formato_hora(valor) for valor in (mensual_base[col_horario] if col_horario else [""] * len(mensual_base))
     ]
-    mensual_base["Sede"] = mensual_base[col_sucursal] if col_sucursal else ""
-    horario_para_nombre = mensual_base[col_horario] if col_horario else [""] * len(mensual_base)
-    mensual_base["Actividad"] = [
-        nombre_reporte(act, fecha, hora)
-        for act, fecha, hora in zip(
-            mensual_base[col_actividad],
-            mensual_base[col_fecha],
-            horario_para_nombre,
-        )
-    ]
-
+    mensual_base["Clase"] = mensual_base[col_actividad]
     columnas_formato = [
-        "Sede",
-        "Actividad",
-        "Fecha actividad",
-        "Dia",
+        "Clase",
         "Horario",
+        "Dia",
         "Inscritos",
         "Presentes",
         "Ausentes",
         "Prom. % de asistencia",
     ]
     formato_mensual = mensual_base[columnas_formato].rename(
-        columns={"Actividad": "Centro club virtual"}
+        columns={
+            "Horario": "Hora",
+            "Prom. % de asistencia": "Porcentaje de asistencia",
+        }
     )
 
     columnas_detalle = agrupadores + [col_persona]
