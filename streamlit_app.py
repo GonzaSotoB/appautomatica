@@ -253,6 +253,8 @@ def buscar_columnas_clase(columnas: list[str]) -> list[str]:
     for col in columnas:
         if re.fullmatch(r"clase_?\d+", normalizar(col)):
             clases.append(col)
+        elif re.fullmatch(r"sesion_?\d+", normalizar(col)):
+            clases.append(col)
 
     def numero_clase(col: str) -> int:
         match = re.search(r"\d+", str(col))
@@ -273,6 +275,19 @@ def formato_hora(valor: object) -> str:
     return texto
 
 
+def obtener_dia(valor: object) -> str:
+    if pd.isna(valor):
+        return ""
+    texto = str(valor).lower()
+    for dia in DIAS_ES.values():
+        if dia in texto:
+            return dia
+    fecha = pd.to_datetime(valor, errors="coerce")
+    if pd.isna(fecha):
+        return ""
+    return DIAS_ES.get(fecha.weekday(), "")
+
+
 def valor_es_uno(valor: object) -> bool:
     if pd.isna(valor):
         return False
@@ -284,15 +299,19 @@ def valor_es_uno(valor: object) -> bool:
         return False
 
 
-def leer_excel_completo(archivo_excel) -> pd.DataFrame:
-    hojas = pd.read_excel(archivo_excel, sheet_name=None)
-    datos = []
-    for _, df in hojas.items():
-        if not df.empty:
-            datos.append(df.copy())
-    if not datos:
-        raise ValueError("El archivo no tiene hojas con datos.")
-    return pd.concat(datos, ignore_index=True)
+def obtener_hojas(archivo_excel) -> list[str]:
+    return pd.ExcelFile(archivo_excel).sheet_names
+
+
+def leer_excel_hoja(archivo_excel, hoja: str | int | None = None) -> pd.DataFrame:
+    hojas = obtener_hojas(archivo_excel)
+    if not hojas:
+        raise ValueError("El archivo no tiene hojas.")
+    hoja_a_leer = hoja if hoja is not None else hojas[0]
+    df = pd.read_excel(archivo_excel, sheet_name=hoja_a_leer)
+    if df.empty:
+        raise ValueError(f"La hoja '{hoja_a_leer}' no tiene datos.")
+    return df.copy()
 
 
 def estandarizar_columnas_por_posicion(df: pd.DataFrame) -> pd.DataFrame:
@@ -300,7 +319,23 @@ def estandarizar_columnas_por_posicion(df: pd.DataFrame) -> pd.DataFrame:
     columnas_nuevas = []
     usados = set()
     for indice, columna in enumerate(df.columns):
-        if indice < len(COLUMNAS_ESTANDAR_POR_POSICION):
+        nombre_original = normalizar(columna)
+        if nombre_original in {
+            "n",
+            "nombre_afiliado",
+            "rut",
+            "telefono",
+            "email_afiliado",
+            "actividades_centro_club",
+            "fecha_actividad",
+            "horario",
+            "sucursal",
+            "mes_oferta",
+            "mes_de_oferta",
+            "total",
+        } or re.fullmatch(r"(clase|sesion)_?\d+", nombre_original):
+            nombre = str(columna).strip()
+        elif indice < len(COLUMNAS_ESTANDAR_POR_POSICION):
             nombre = COLUMNAS_ESTANDAR_POR_POSICION[indice]
         else:
             nombre = str(columna)
@@ -321,13 +356,14 @@ def estandarizar_columnas_por_posicion(df: pd.DataFrame) -> pd.DataFrame:
 
 def generar_tabla_final(
     archivo_excel,
+    hoja: str | int | None = None,
     col_actividad: str | None = None,
     col_fecha: str | None = None,
     col_horario: str | None = None,
     col_total: str | None = None,
     col_persona_usuario: str | None = None,
 ) -> pd.DataFrame:
-    df = estandarizar_columnas_por_posicion(leer_excel_completo(archivo_excel))
+    df = estandarizar_columnas_por_posicion(leer_excel_hoja(archivo_excel, hoja))
     columnas = list(df.columns)
 
     col_actividad = col_actividad or buscar_columna(
@@ -358,6 +394,13 @@ def generar_tabla_final(
         raise ValueError("No se encontro una columna para identificar personas, por ejemplo RUT o Nombre.")
 
     trabajo = df.copy()
+    if col_sucursal:
+        sucursal_como_fecha = pd.to_datetime(trabajo[col_sucursal], errors="coerce").notna().mean()
+        for posible_sucursal in ["mes_oferta", "Mes de oferta", "Mes Oferta"]:
+            if sucursal_como_fecha > 0.5 and posible_sucursal in trabajo.columns:
+                col_sucursal = posible_sucursal
+                break
+
     columnas_base = [col_actividad, col_fecha]
     if col_total:
         columnas_base.append(col_total)
@@ -369,6 +412,7 @@ def generar_tabla_final(
     ].copy()
 
     trabajo["_fecha_actividad"] = pd.to_datetime(trabajo[col_fecha], errors="coerce").dt.date
+    trabajo["_dia_actividad"] = trabajo[col_fecha].map(obtener_dia)
     trabajo["_actividad"] = trabajo[col_actividad]
     trabajo["_sucursal"] = trabajo[col_sucursal] if col_sucursal else ""
     trabajo["_horario"] = trabajo[col_horario] if col_horario else ""
@@ -388,7 +432,7 @@ def generar_tabla_final(
         trabajo["Presente"] = asistencia.any(axis=1).astype(int)
         trabajo["Ausente"] = asistencia.sum(axis=1).eq(0).astype(int)
 
-    agrupadores = ["_sucursal", "_fecha_actividad", "_actividad", "_horario"]
+    agrupadores = ["_sucursal", "_dia_actividad", "_actividad", "_horario"]
 
     persona_clase = (
         trabajo.groupby(agrupadores + ["Identificador_persona"], dropna=False)
@@ -412,9 +456,7 @@ def generar_tabla_final(
     tabla["Clase"] = tabla["_actividad"]
     tabla["Sucursal"] = tabla["_sucursal"]
     tabla["Hora"] = [formato_hora(v) for v in tabla["_horario"]]
-    tabla["Dia"] = tabla["_fecha_actividad"].map(
-        lambda fecha: "" if pd.isna(fecha) else DIAS_ES.get(pd.Timestamp(fecha).weekday(), "")
-    )
+    tabla["Dia"] = tabla["_dia_actividad"]
     tabla["_orden_sucursal"] = tabla["Sucursal"].map(lambda s: ORDEN_SUCURSALES.get(clave_orden(s), 999))
     tabla["_clave_clase"] = (
         tabla["Clase"].astype(str) + " " + tabla["Dia"].astype(str) + " " + tabla["Hora"].astype(str)
@@ -436,8 +478,8 @@ def generar_tabla_final(
     ]
 
 
-def detectar_columnas(archivo_excel) -> tuple[pd.DataFrame, dict[str, str | None]]:
-    df = estandarizar_columnas_por_posicion(leer_excel_completo(archivo_excel))
+def detectar_columnas(archivo_excel, hoja: str | int | None = None) -> tuple[pd.DataFrame, dict[str, str | None]]:
+    df = estandarizar_columnas_por_posicion(leer_excel_hoja(archivo_excel, hoja))
     columnas = list(df.columns)
     deteccion = {
         "actividad": buscar_columna(columnas, ["Actividades_Centro_club", "activi", "Actividad", "Nombre actividad"], requerida=False)
@@ -585,7 +627,16 @@ def main() -> None:
         st.stop()
 
     try:
-        df_preview, deteccion = detectar_columnas(archivo)
+        hojas = obtener_hojas(archivo)
+    except Exception as exc:
+        st.error(f"No se pudieron leer las hojas del archivo: {exc}")
+        st.stop()
+
+    hoja_seleccionada = st.selectbox("Selecciona la hoja a procesar", hojas)
+    archivo.seek(0)
+
+    try:
+        df_preview, deteccion = detectar_columnas(archivo, hoja_seleccionada)
     except Exception as exc:
         st.error(f"No se pudo procesar el archivo: {exc}")
         st.stop()
@@ -626,6 +677,7 @@ def main() -> None:
         archivo.seek(0)
         tabla_final = generar_tabla_final(
             archivo,
+            hoja=hoja_seleccionada,
             col_actividad=col_actividad,
             col_fecha=col_fecha,
             col_horario=col_horario or None,
