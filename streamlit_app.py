@@ -36,6 +36,150 @@ COLUMNAS_ESTANDAR_POR_POSICION = [
     "%",
 ]
 
+ORDEN_PREFACTURA = {
+    "Virtual": [
+        "Gimnasia funcional lunes 9:00",
+        "Mindfulness avanzado lunes 9:00",
+        "Ágilmente lunes 9:00",
+        "Entrenando la mente lunes 11:00",
+        "Autoestima y Conocimiento",
+        "Inglés Intermedio lunes 14:00",
+        "Tarot lunes 16:00",
+        "Juegos cognitivos martes 9:00",
+        "Entrenamiento funcional senior avanzado martes 9:00",
+        "Técnicas de relajación martes 11:00",
+        "Uso de Redes Sociales martes 11:00",
+        "Baile entretenido martes 11:00",
+        "Mente activa martes 11:00",
+        "Inglés martes 14:00",
+        "Yoga martes 16:00",
+        "Cocina entretenida martes 16:00",
+        "Taller de Autobiografía martes 16:00",
+        "Entrenamiento funcional senior inicial miércoles 9:00",
+        "Aprende sobre inteligencia artificial miércoles 9:00",
+        "Yoga miércoles 11:00",
+        "Reflexología miércoles 11:00",
+        "Gimnasia funcional miércoles 11:00",
+        "Mindfulness inicial miércoles 14:00",
+        "Frances Inicial miércoles 14:00",
+        "Amasandería miércoles 16:00",
+        "Aromaterapia miércoles 16:00",
+        "Jardineria y bienestar miércoles 16:00",
+        "Ajedrez inicial jueves 09:00",
+        "Emociones y Resolución de conflictos jueves 09:00",
+        "Ágilmente jueves 11:00",
+        "Viaja sin salir de tu casa jueves 11:00",
+        "Gimnasia funcional jueves 11:00",
+        "Introducción a la pintura jueves 14:00",
+        "Bienestar emocional jueves 16:00",
+        "Tejido a Palillo jueves 16:00",
+        "Astrología jueves 16:00",
+        "Entrenando la mente viernes 9:00",
+        "Gimnasia funcional viernes 9:00",
+        "Baile entretenido viernes 11:00",
+        "Habilidades Digitales para la vida diaria viernes 11:00",
+        "Tejido viernes 11:00",
+        "Pintura intermedia viernes 14:00",
+        "Uso de celulares Smartphone viernes 16:00",
+    ],
+    "Alonso de Ovalle": [
+        "Baile entretenido lunes 10:00",
+        "Gimnasia kinésica lunes 11:15",
+        "Entrenamiento funcional lunes 11:15",
+        "Ágilmente lunes 11:15",
+        "Gimnasia kinésica lunes 12:30",
+        "Crochet avanzado lunes 12:30",
+        "Gimnasia kinésica lunes 15:30",
+        "Yoga lunes 15:30",
+        "Gimnasia kinésica martes 10:00",
+        "Pintura martes 10:00",
+        "Bailes tropicales martes 10:00",
+        "Baile entretenido martes 11:15",
+        "Aprende a Usar  tu sucursal Virtual martes 11:15",
+        "Folklore chileno martes 11:15",
+        "Teatro: mente, cuerpo y creatividad martes 11:15",
+        "Inglés martes 12:30",
+        "Gimnasia kinésica martes 12:30",
+        "Pilates martes 12:30",
+        "Taichi martes 15:30",
+        "Chikung Terapeútico martes 15:30",
+        "Gimnasia kinésica miércoles 10:00",
+        "Uso de Whastapp miércoles 10:00",
+        "Gimnasia kinésica miércoles 11:15",
+        "Uso de Smartphone miércoles 11:15",
+        "Danzas del mundo miércoles 11:15",
+        "Gimnasia kinésica miércoles 12:30",
+        "Tango miércoles 12:30",
+        "Baile entretenido miércoles 15:30",
+        "Gimnasia kinésica jueves 10:00",
+        "Manos creativas: Arte Terapeútico jueves 11:15",
+        "Gimnasia kinésica jueves 11:15",
+        "Yoga jueves 11:15",
+        "Gimnasia kinésica jueves 12:30",
+        "Pilates jueves 12:30",
+        "Taichi jueves 15:30",
+        "Ágilmente jueves 15:30",
+        "Baile entretenido viernes 10:00",
+        "Gimnasia kinésica viernes 11:15",
+        "Jueguemos Ajedrez viernes 11:15",
+        "Entrenamiento funcional viernes 12:00",
+        "Yoga viernes 12:00",
+    ],
+    "Ñuñoa": [
+        "Baile entretenido lunes 10:00",
+        "Viaje a través de la literatura lunes 11:15",
+        "Uso de smartphone lunes 12:00",
+        "Yoga lunes 15:15",
+        "Gimnasia kinésica martes 10:00",
+        "Agilmente martes 15:15",
+        "Agilmente miércoles 10:00",
+        "Entrenamiento Funcional miércoles 11:15",
+        "Baile entretenido miércoles 15:15",
+        "Gimnasia kinésica jueves 10:00",
+        "Inglés Avanzado jueves 11:15",
+        "Taichi jueves intermedio 12:00",
+        "Taichi inicial jueves 15:15",
+        "Baile entretenido viernes 10:00",
+        "Yoga viernes 13:00",
+    ],
+    "La Florida": [
+        "Gimnasia kinésica lunes 10:00",
+        "Ágilmente lunes 11:15",
+        "Entrenamiento funcional martes 12:00",
+        "Gimnasia kinésica miércoles 10:00",
+        "Baile entretenido viernes 10:00",
+        "Gimnasia kinésica viernes 11:15",
+    ],
+    "Puente Alto": [
+        "Baile entretenido lunes 11:15",
+        "Gimnasia kinésica martes 15:00",
+        "Uso de Smartphone miércoles 15:00",
+        "Entrenamiento funcional jueves 12:00",
+        "Baile entretenido jueves 15:00",
+        "Gimnasia kinésica viernes 10:00",
+    ],
+    "San Bernardo": [
+        "Agilmente martes 15:15",
+        "Gimnasia kinésica miércoles 15:15",
+        "Baile entretenido jueves 15:15",
+    ],
+    "Buin": [
+        "Gimnasia kinésica martes 10:00",
+        "Baile entretenido jueves 10:00",
+    ],
+    "Melipilla": [
+        "Baile entretenido lunes 10:00",
+        "Yoga miércoles 10:00",
+        "Inglés Intermedio jueves 10:00",
+        "Pilates viernes 10:00",
+    ],
+    "San Miguel": [
+        "Gimnasia kinésica lunes 15:15",
+        "Baile entretenido miércoles 10:00",
+        "Ágilmente jueves 10:00",
+    ],
+}
+
 
 def normalizar(texto: object) -> str:
     texto = "" if texto is None else str(texto)
@@ -43,6 +187,35 @@ def normalizar(texto: object) -> str:
     texto = "".join(c for c in texto if not unicodedata.combining(c))
     texto = texto.lower().strip()
     return re.sub(r"[^a-z0-9]+", "_", texto).strip("_")
+
+
+def clave_orden(texto: object) -> str:
+    texto = "" if texto is None else str(texto)
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    texto = texto.lower().strip()
+    texto = re.sub(r"\b(\d{1,2}):(\d{2})\b", lambda m: f"{int(m.group(1)):02d}:{m.group(2)}", texto)
+    texto = re.sub(r"[^a-z0-9:]+", " ", texto)
+    return re.sub(r"\s+", " ", texto).strip()
+
+
+def clave_orden_compacta(texto: object) -> str:
+    return clave_orden(texto).replace(" ", "")
+
+
+ORDEN_SUCURSALES = {clave_orden(sucursal): i for i, sucursal in enumerate(ORDEN_PREFACTURA)}
+ORDEN_CLASES = {
+    clave_orden(sucursal): {
+        clave_orden(clase): i for i, clase in enumerate(clases)
+    }
+    for sucursal, clases in ORDEN_PREFACTURA.items()
+}
+ORDEN_CLASES_COMPACTO = {
+    clave_orden(sucursal): {
+        clave_orden_compacta(clase): i for i, clase in enumerate(clases)
+    }
+    for sucursal, clases in ORDEN_PREFACTURA.items()
+}
 
 
 def buscar_columna(columnas: list[str], opciones: list[str], requerida: bool = True) -> str | None:
@@ -167,6 +340,7 @@ def generar_tabla_final(
         ["Fecha_actividad", "Fecha actividad", "Fecha"],
         requerida=False,
     ) or sugerir_columna(columnas, ["fecha"])
+    col_sucursal = buscar_columna(columnas, ["sucursal", "sede", "centro"], requerida=False)
     col_horario = col_horario or buscar_columna(columnas, ["Horario", "Hora"], requerida=False)
     col_total = col_total or buscar_columna(columnas, ["Total", "Total asistencia", "Total asistencias"], requerida=False)
     col_rut = buscar_columna(columnas, ["RUT", "Rut afiliado", "Documento"], requerida=False)
@@ -196,6 +370,7 @@ def generar_tabla_final(
 
     trabajo["_fecha_actividad"] = pd.to_datetime(trabajo[col_fecha], errors="coerce").dt.date
     trabajo["_actividad"] = trabajo[col_actividad]
+    trabajo["_sucursal"] = trabajo[col_sucursal] if col_sucursal else ""
     trabajo["_horario"] = trabajo[col_horario] if col_horario else ""
     trabajo["Identificador_persona"] = trabajo[col_persona].astype("string").fillna("").str.strip()
     if col_persona_usuario is None and col_rut and col_nombre:
@@ -213,7 +388,7 @@ def generar_tabla_final(
         trabajo["Presente"] = asistencia.any(axis=1).astype(int)
         trabajo["Ausente"] = asistencia.sum(axis=1).eq(0).astype(int)
 
-    agrupadores = ["_fecha_actividad", "_actividad", "_horario"]
+    agrupadores = ["_sucursal", "_fecha_actividad", "_actividad", "_horario"]
 
     persona_clase = (
         trabajo.groupby(agrupadores + ["Identificador_persona"], dropna=False)
@@ -235,13 +410,29 @@ def generar_tabla_final(
         tabla["Presentes"] / tabla["Inscritos"].replace(0, pd.NA) * 100
     ).fillna(0).round().astype(int)
     tabla["Clase"] = tabla["_actividad"]
+    tabla["Sucursal"] = tabla["_sucursal"]
     tabla["Hora"] = [formato_hora(v) for v in tabla["_horario"]]
     tabla["Dia"] = tabla["_fecha_actividad"].map(
         lambda fecha: "" if pd.isna(fecha) else DIAS_ES.get(pd.Timestamp(fecha).weekday(), "")
     )
+    tabla["_orden_sucursal"] = tabla["Sucursal"].map(lambda s: ORDEN_SUCURSALES.get(clave_orden(s), 999))
+    tabla["_clave_clase"] = (
+        tabla["Clase"].astype(str) + " " + tabla["Dia"].astype(str) + " " + tabla["Hora"].astype(str)
+    ).map(clave_orden)
+    tabla["_orden_clase"] = [
+        ORDEN_CLASES.get(clave_orden(sucursal), {}).get(
+            clase,
+            ORDEN_CLASES_COMPACTO.get(clave_orden(sucursal), {}).get(clase.replace(" ", ""), 9999),
+        )
+        for sucursal, clase in zip(tabla["Sucursal"], tabla["_clave_clase"])
+    ]
+    tabla = tabla.sort_values(
+        by=["_orden_sucursal", "Sucursal", "_orden_clase", "Dia", "Hora", "Clase"],
+        kind="stable",
+    )
 
     return tabla[
-        ["Clase", "Hora", "Dia", "Inscritos", "Presentes", "Ausentes", "Porcentaje de asistencia"]
+        ["Sucursal", "Clase", "Hora", "Dia", "Inscritos", "Presentes", "Ausentes", "Porcentaje de asistencia"]
     ]
 
 
