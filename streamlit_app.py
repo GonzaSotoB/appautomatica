@@ -456,12 +456,90 @@ def main() -> None:
     import streamlit as st
 
     st.set_page_config(page_title="Resumen de asistencias", layout="wide")
-    st.title("Resumen automatico de asistencias")
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            background: #f6f7fb;
+        }
+        .block-container {
+            padding-top: 2.2rem;
+            padding-bottom: 3rem;
+            max-width: 1280px;
+        }
+        .hero {
+            background: linear-gradient(135deg, #17324d 0%, #256f7a 100%);
+            border-radius: 18px;
+            padding: 28px 32px;
+            color: white;
+            margin-bottom: 22px;
+            box-shadow: 0 12px 30px rgba(23, 50, 77, 0.16);
+        }
+        .hero h1 {
+            margin: 0 0 8px 0;
+            font-size: 2.35rem;
+            line-height: 1.05;
+            letter-spacing: 0;
+        }
+        .hero p {
+            margin: 0;
+            font-size: 1rem;
+            opacity: 0.92;
+        }
+        .section-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            padding: 18px 20px;
+            margin: 14px 0 18px 0;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+        }
+        div[data-testid="stMetric"] {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            padding: 16px 18px;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+        }
+        div[data-testid="stMetricLabel"] p {
+            color: #475569;
+            font-weight: 700;
+        }
+        div[data-testid="stMetricValue"] {
+            color: #17324d;
+            font-weight: 800;
+        }
+        .stDataFrame {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+        }
+        .small-note {
+            color: #64748b;
+            font-size: 0.92rem;
+            margin-top: -6px;
+            margin-bottom: 12px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <div class="hero">
+            <h1>Resumen automatico de asistencias</h1>
+            <p>Sube tu listado mensual, revisa las columnas detectadas y descarga una tabla lista para traspasar.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
     archivo = st.file_uploader("Sube el Excel de asistencia", type=["xlsx", "xls"])
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if archivo is None:
-        st.info("Carga un archivo Excel para generar el resumen.")
+        st.info("Carga un archivo Excel para generar la tabla final.")
         st.stop()
 
     try:
@@ -521,8 +599,11 @@ def main() -> None:
     col2.metric("Presentes", f"{int(tabla_final['Presentes'].sum()):,}".replace(",", "."))
     col3.metric("Ausentes", f"{int(tabla_final['Ausentes'].sum()):,}".replace(",", "."))
 
-    st.subheader("Tabla final")
-    st.caption("Regla: Total = 0 es Ausente; Total mayor que 0 es Presente.")
+    st.markdown("### Tabla final")
+    st.markdown(
+        '<p class="small-note">Regla usada: <b>Total = 0</b> es Ausente; <b>Total mayor que 0</b> es Presente.</p>',
+        unsafe_allow_html=True,
+    )
     st.dataframe(tabla_final, use_container_width=True, hide_index=True)
 
     salida = BytesIO()
