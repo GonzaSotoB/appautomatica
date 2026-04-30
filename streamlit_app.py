@@ -460,7 +460,8 @@ def main() -> None:
         """
         <style>
         .stApp {
-            background: #f6f7fb;
+            background: #0b1120;
+            color: #e5eef8;
         }
         .block-container {
             padding-top: 2.2rem;
@@ -468,12 +469,15 @@ def main() -> None:
             max-width: 1280px;
         }
         .hero {
-            background: linear-gradient(135deg, #17324d 0%, #256f7a 100%);
-            border-radius: 18px;
-            padding: 28px 32px;
-            color: white;
+            background:
+                linear-gradient(135deg, rgba(20, 184, 166, 0.16), rgba(56, 189, 248, 0.08)),
+                #111827;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            border-radius: 16px;
+            padding: 30px 34px;
+            color: #f8fafc;
             margin-bottom: 22px;
-            box-shadow: 0 12px 30px rgba(23, 50, 77, 0.16);
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
         }
         .hero h1 {
             margin: 0 0 8px 0;
@@ -484,41 +488,79 @@ def main() -> None:
         .hero p {
             margin: 0;
             font-size: 1rem;
-            opacity: 0.92;
+            color: #b6c7d8;
         }
         .section-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
+            background: #111827;
+            border: 1px solid rgba(148, 163, 184, 0.18);
             border-radius: 14px;
             padding: 18px 20px;
             margin: 14px 0 18px 0;
-            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
         }
         div[data-testid="stMetric"] {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
+            background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
+            border: 1px solid rgba(148, 163, 184, 0.2);
             border-radius: 14px;
             padding: 16px 18px;
-            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25);
         }
         div[data-testid="stMetricLabel"] p {
-            color: #475569;
+            color: #9fb2c7;
             font-weight: 700;
         }
         div[data-testid="stMetricValue"] {
-            color: #17324d;
+            color: #5eead4;
             font-weight: 800;
+        }
+        div[data-testid="stFileUploader"] section {
+            background: #0f172a;
+            border: 1px dashed rgba(94, 234, 212, 0.36);
+            border-radius: 12px;
+        }
+        div[data-testid="stFileUploader"] label,
+        div[data-testid="stFileUploader"] p {
+            color: #dbeafe;
+        }
+        div[data-testid="stExpander"] {
+            background: #111827;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 12px;
+        }
+        div[data-testid="stExpander"] p,
+        div[data-testid="stExpander"] label {
+            color: #dbeafe;
+        }
+        .stSelectbox label {
+            color: #dbeafe !important;
         }
         .stDataFrame {
             border-radius: 12px;
             overflow: hidden;
-            border: 1px solid #e5e7eb;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
         }
         .small-note {
-            color: #64748b;
+            color: #9fb2c7;
             font-size: 0.92rem;
             margin-top: -6px;
             margin-bottom: 12px;
+        }
+        h3 {
+            color: #f8fafc;
+        }
+        .stDownloadButton button {
+            background: #14b8a6;
+            color: #06221f;
+            border: 0;
+            font-weight: 800;
+            border-radius: 10px;
+            padding: 0.6rem 1rem;
+        }
+        .stDownloadButton button:hover {
+            background: #2dd4bf;
+            color: #06221f;
+            border: 0;
         }
         </style>
         """,
