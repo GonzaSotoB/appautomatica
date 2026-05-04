@@ -36,6 +36,8 @@ COLUMNAS_ESTANDAR_POR_POSICION = [
     "%",
 ]
 
+TODAS_HOJAS_ASISTENCIA = "Todas las hojas de asistencia"
+
 ORDEN_PREFACTURA = {
     "Virtual": [
         "Gimnasia funcional lunes 9:00",
@@ -314,6 +316,31 @@ def leer_excel_hoja(archivo_excel, hoja: str | int | None = None) -> pd.DataFram
     return df.copy()
 
 
+def encontrar_fila_encabezado_antiguo(archivo_excel, hoja: str | int) -> int | None:
+    vista = pd.read_excel(archivo_excel, sheet_name=hoja, header=None, nrows=12)
+    for indice, fila in vista.iterrows():
+        textos = {normalizar(valor) for valor in fila.dropna().tolist()}
+        unido = " ".join(textos)
+        if (
+            ("rut" in textos)
+            and ("curso" in textos or "clase" in textos)
+            and ("nombre_del_alumno" in textos)
+        ):
+            return int(indice)
+        if "rut" in unido and "nombre_del_alumno" in unido and ("curso" in unido or "clase" in unido):
+            return int(indice)
+    return None
+
+
+def hoja_es_formato_antiguo(archivo_excel, hoja: str | int) -> bool:
+    return encontrar_fila_encabezado_antiguo(archivo_excel, hoja) is not None
+
+
+def libro_es_formato_antiguo(archivo_excel) -> bool:
+    hojas = obtener_hojas(archivo_excel)
+    return any(hoja_es_formato_antiguo(archivo_excel, hoja) for hoja in hojas[:6])
+
+
 def estandarizar_columnas_por_posicion(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     columnas_nuevas = []
@@ -354,6 +381,121 @@ def estandarizar_columnas_por_posicion(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def ordenar_tabla(tabla: pd.DataFrame) -> pd.DataFrame:
+    if tabla.empty:
+        return tabla
+    tabla = tabla.copy()
+    tabla["_orden_sucursal"] = tabla["Sucursal"].map(lambda s: ORDEN_SUCURSALES.get(clave_orden(s), 999))
+    tabla["_clave_clase"] = (
+        tabla["Clase"].astype(str) + " " + tabla["Dia"].astype(str) + " " + tabla["Hora"].astype(str)
+    ).map(clave_orden)
+    tabla["_orden_clase"] = [
+        ORDEN_CLASES.get(clave_orden(sucursal), {}).get(
+            clase,
+            ORDEN_CLASES_COMPACTO.get(clave_orden(sucursal), {}).get(clase.replace(" ", ""), 9999),
+        )
+        for sucursal, clase in zip(tabla["Sucursal"], tabla["_clave_clase"])
+    ]
+    return tabla.sort_values(
+        by=["_orden_sucursal", "Sucursal", "_orden_clase", "Dia", "Hora", "Clase"],
+        kind="stable",
+    ).drop(columns=["_orden_sucursal", "_clave_clase", "_orden_clase"])
+
+
+def resumir_trabajo_preparado(trabajo: pd.DataFrame) -> pd.DataFrame:
+    agrupadores = ["_sucursal", "_dia_actividad", "_actividad", "_horario"]
+    persona_clase = (
+        trabajo.groupby(agrupadores + ["Identificador_persona"], dropna=False)
+        .agg(Presente=("Presente", "max"), Ausente=("Ausente", "max"))
+        .reset_index()
+    )
+    persona_clase.loc[persona_clase["Presente"].eq(1), "Ausente"] = 0
+
+    tabla = (
+        persona_clase.groupby(agrupadores, dropna=False)
+        .agg(
+            Inscritos=("Identificador_persona", "nunique"),
+            Presentes=("Presente", "sum"),
+            Ausentes=("Ausente", "sum"),
+        )
+        .reset_index()
+    )
+    tabla["Porcentaje de asistencia"] = (
+        tabla["Presentes"] / tabla["Inscritos"].replace(0, pd.NA) * 100
+    ).fillna(0).round().astype(int)
+    tabla["Sucursal"] = tabla["_sucursal"]
+    tabla["Clase"] = tabla["_actividad"]
+    tabla["Hora"] = [formato_hora(valor) for valor in tabla["_horario"]]
+    tabla["Dia"] = tabla["_dia_actividad"]
+    tabla = ordenar_tabla(tabla)
+    return tabla[
+        ["Sucursal", "Clase", "Hora", "Dia", "Inscritos", "Presentes", "Ausentes", "Porcentaje de asistencia"]
+    ]
+
+
+def generar_tabla_final_antigua(archivo_excel, hoja: str | int | None = None) -> pd.DataFrame:
+    hojas = obtener_hojas(archivo_excel)
+    if hoja in (None, TODAS_HOJAS_ASISTENCIA):
+        hojas_a_leer = [h for h in hojas if hoja_es_formato_antiguo(archivo_excel, h)]
+    else:
+        hojas_a_leer = [hoja]
+
+    datos = []
+    for nombre_hoja in hojas_a_leer:
+        fila_encabezado = encontrar_fila_encabezado_antiguo(archivo_excel, nombre_hoja)
+        if fila_encabezado is None:
+            continue
+        df = pd.read_excel(archivo_excel, sheet_name=nombre_hoja, header=fila_encabezado)
+        columnas = list(df.columns)
+        col_actividad = buscar_columna(columnas, ["Curso", "Clase"], requerida=False)
+        col_dia = buscar_columna(columnas, ["Dia", "Día", "Fecha"], requerida=False)
+        col_sucursal = buscar_columna(columnas, ["Sucursal", "Sede", "Centro"], requerida=False)
+        col_hora = buscar_columna(columnas, ["HORA", "Hora", "Horario"], requerida=False)
+        col_total = buscar_columna(columnas, ["Total asistencia", "Total"], requerida=False)
+        col_rut = buscar_columna(columnas, ["RUT", "Documento"], requerida=False)
+        col_nombre = buscar_columna(columnas, ["Nombre del Alumno", "Nombre alumno", "Nombre"], requerida=False)
+
+        if not all([col_actividad, col_dia, col_total]) or not (col_rut or col_nombre):
+            continue
+
+        trabajo = df.copy()
+        trabajo = trabajo.loc[trabajo[col_actividad].notna()].copy()
+        trabajo = trabajo.loc[~trabajo[col_actividad].astype(str).str.strip().str.lower().eq("total")].copy()
+        trabajo["_actividad"] = trabajo[col_actividad]
+        trabajo["_dia_actividad"] = trabajo[col_dia].map(obtener_dia)
+        trabajo["_sucursal"] = trabajo[col_sucursal] if col_sucursal else ""
+        trabajo["_horario"] = trabajo[col_hora] if col_hora else ""
+
+        col_persona = col_rut or col_nombre
+        trabajo["Identificador_persona"] = trabajo[col_persona].astype("string").fillna("").str.strip()
+        if col_rut and col_nombre:
+            sin_rut = trabajo["Identificador_persona"].eq("")
+            trabajo.loc[sin_rut, "Identificador_persona"] = (
+                trabajo.loc[sin_rut, col_nombre].astype("string").fillna("").str.strip()
+            )
+        trabajo = trabajo.loc[trabajo["Identificador_persona"].ne("")].copy()
+
+        total = pd.to_numeric(trabajo[col_total], errors="coerce")
+        trabajo["Presente"] = total.gt(0).astype(int)
+        trabajo["Ausente"] = total.eq(0).astype(int)
+        datos.append(trabajo[[
+            "_sucursal",
+            "_dia_actividad",
+            "_actividad",
+            "_horario",
+            "Identificador_persona",
+            "Presente",
+            "Ausente",
+        ]])
+
+    if not datos:
+        return pd.DataFrame(columns=[
+            "Sucursal", "Clase", "Hora", "Dia", "Inscritos", "Presentes", "Ausentes", "Porcentaje de asistencia"
+        ])
+
+    return resumir_trabajo_preparado(pd.concat(datos, ignore_index=True))
+
+
 def generar_tabla_final(
     archivo_excel,
     hoja: str | int | None = None,
@@ -363,6 +505,9 @@ def generar_tabla_final(
     col_total: str | None = None,
     col_persona_usuario: str | None = None,
 ) -> pd.DataFrame:
+    if hoja == TODAS_HOJAS_ASISTENCIA or hoja_es_formato_antiguo(archivo_excel, hoja or obtener_hojas(archivo_excel)[0]):
+        return generar_tabla_final_antigua(archivo_excel, hoja)
+
     df = estandarizar_columnas_por_posicion(leer_excel_hoja(archivo_excel, hoja))
     columnas = list(df.columns)
 
@@ -432,50 +577,7 @@ def generar_tabla_final(
         trabajo["Presente"] = asistencia.any(axis=1).astype(int)
         trabajo["Ausente"] = asistencia.sum(axis=1).eq(0).astype(int)
 
-    agrupadores = ["_sucursal", "_dia_actividad", "_actividad", "_horario"]
-
-    persona_clase = (
-        trabajo.groupby(agrupadores + ["Identificador_persona"], dropna=False)
-        .agg(Presente=("Presente", "max"), Ausente=("Ausente", "max"))
-        .reset_index()
-    )
-    persona_clase.loc[persona_clase["Presente"].eq(1), "Ausente"] = 0
-
-    tabla = (
-        persona_clase.groupby(agrupadores, dropna=False)
-        .agg(
-            Inscritos=("Identificador_persona", "nunique"),
-            Presentes=("Presente", "sum"),
-            Ausentes=("Ausente", "sum"),
-        )
-        .reset_index()
-    )
-    tabla["Porcentaje de asistencia"] = (
-        tabla["Presentes"] / tabla["Inscritos"].replace(0, pd.NA) * 100
-    ).fillna(0).round().astype(int)
-    tabla["Clase"] = tabla["_actividad"]
-    tabla["Sucursal"] = tabla["_sucursal"]
-    tabla["Hora"] = [formato_hora(v) for v in tabla["_horario"]]
-    tabla["Dia"] = tabla["_dia_actividad"]
-    tabla["_orden_sucursal"] = tabla["Sucursal"].map(lambda s: ORDEN_SUCURSALES.get(clave_orden(s), 999))
-    tabla["_clave_clase"] = (
-        tabla["Clase"].astype(str) + " " + tabla["Dia"].astype(str) + " " + tabla["Hora"].astype(str)
-    ).map(clave_orden)
-    tabla["_orden_clase"] = [
-        ORDEN_CLASES.get(clave_orden(sucursal), {}).get(
-            clase,
-            ORDEN_CLASES_COMPACTO.get(clave_orden(sucursal), {}).get(clase.replace(" ", ""), 9999),
-        )
-        for sucursal, clase in zip(tabla["Sucursal"], tabla["_clave_clase"])
-    ]
-    tabla = tabla.sort_values(
-        by=["_orden_sucursal", "Sucursal", "_orden_clase", "Dia", "Hora", "Clase"],
-        kind="stable",
-    )
-
-    return tabla[
-        ["Sucursal", "Clase", "Hora", "Dia", "Inscritos", "Presentes", "Ausentes", "Porcentaje de asistencia"]
-    ]
+    return resumir_trabajo_preparado(trabajo)
 
 
 def detectar_columnas(archivo_excel, hoja: str | int | None = None) -> tuple[pd.DataFrame, dict[str, str | None]]:
@@ -632,61 +734,77 @@ def main() -> None:
         st.error(f"No se pudieron leer las hojas del archivo: {exc}")
         st.stop()
 
-    hoja_seleccionada = st.selectbox("Selecciona la hoja a procesar", hojas)
+    archivo.seek(0)
+    formato_antiguo = libro_es_formato_antiguo(archivo)
     archivo.seek(0)
 
-    try:
-        df_preview, deteccion = detectar_columnas(archivo, hoja_seleccionada)
-    except Exception as exc:
-        st.error(f"No se pudo procesar el archivo: {exc}")
-        st.stop()
-
-    columnas = list(df_preview.columns)
-    opciones_requeridas = columnas
-    opciones_opcionales = [""] + columnas
-
-    with st.expander("Revisar o cambiar columnas detectadas", expanded=False):
-        st.write("Si una columna viene con otro nombre, elige aqui cual corresponde.")
-        col_actividad = st.selectbox(
-            "Columna de clase / actividad",
-            opciones_requeridas,
-            index=opciones_requeridas.index(deteccion["actividad"]) if deteccion["actividad"] in opciones_requeridas else 0,
-        )
-        col_fecha = st.selectbox(
-            "Columna de fecha",
-            opciones_requeridas,
-            index=opciones_requeridas.index(deteccion["fecha"]) if deteccion["fecha"] in opciones_requeridas else 0,
-        )
-        col_horario = st.selectbox(
-            "Columna de hora",
-            opciones_opcionales,
-            index=opciones_opcionales.index(deteccion["hora"]) if deteccion["hora"] in opciones_opcionales else 0,
-        )
-        col_total = st.selectbox(
-            "Columna total de asistencia",
-            opciones_opcionales,
-            index=opciones_opcionales.index(deteccion["total"]) if deteccion["total"] in opciones_opcionales else 0,
-        )
-        col_persona = st.selectbox(
-            "Columna para identificar persona",
-            opciones_requeridas,
-            index=opciones_requeridas.index(deteccion["persona"]) if deteccion["persona"] in opciones_requeridas else 0,
-        )
-
-    try:
+    if formato_antiguo:
+        hojas_asistencia = [hoja for hoja in hojas if hoja_es_formato_antiguo(archivo, hoja)]
+        opciones_hoja = [TODAS_HOJAS_ASISTENCIA] + hojas_asistencia
+        hoja_seleccionada = st.selectbox("Selecciona la hoja a procesar", opciones_hoja)
+        st.caption("Formato antiguo detectado: se leeran las hojas con encabezado de asistencia.")
+        try:
+            archivo.seek(0)
+            tabla_final = generar_tabla_final(archivo, hoja=hoja_seleccionada)
+        except Exception as exc:
+            st.error(f"No se pudo generar la tabla: {exc}")
+            st.stop()
+    else:
+        hoja_seleccionada = st.selectbox("Selecciona la hoja a procesar", hojas)
         archivo.seek(0)
-        tabla_final = generar_tabla_final(
-            archivo,
-            hoja=hoja_seleccionada,
-            col_actividad=col_actividad,
-            col_fecha=col_fecha,
-            col_horario=col_horario or None,
-            col_total=col_total or None,
-            col_persona_usuario=col_persona,
-        )
-    except Exception as exc:
-        st.error(f"No se pudo generar la tabla: {exc}")
-        st.stop()
+
+        try:
+            df_preview, deteccion = detectar_columnas(archivo, hoja_seleccionada)
+        except Exception as exc:
+            st.error(f"No se pudo procesar el archivo: {exc}")
+            st.stop()
+
+        columnas = list(df_preview.columns)
+        opciones_requeridas = columnas
+        opciones_opcionales = [""] + columnas
+
+        with st.expander("Revisar o cambiar columnas detectadas", expanded=False):
+            st.write("Si una columna viene con otro nombre, elige aqui cual corresponde.")
+            col_actividad = st.selectbox(
+                "Columna de clase / actividad",
+                opciones_requeridas,
+                index=opciones_requeridas.index(deteccion["actividad"]) if deteccion["actividad"] in opciones_requeridas else 0,
+            )
+            col_fecha = st.selectbox(
+                "Columna de fecha",
+                opciones_requeridas,
+                index=opciones_requeridas.index(deteccion["fecha"]) if deteccion["fecha"] in opciones_requeridas else 0,
+            )
+            col_horario = st.selectbox(
+                "Columna de hora",
+                opciones_opcionales,
+                index=opciones_opcionales.index(deteccion["hora"]) if deteccion["hora"] in opciones_opcionales else 0,
+            )
+            col_total = st.selectbox(
+                "Columna total de asistencia",
+                opciones_opcionales,
+                index=opciones_opcionales.index(deteccion["total"]) if deteccion["total"] in opciones_opcionales else 0,
+            )
+            col_persona = st.selectbox(
+                "Columna para identificar persona",
+                opciones_requeridas,
+                index=opciones_requeridas.index(deteccion["persona"]) if deteccion["persona"] in opciones_requeridas else 0,
+            )
+
+        try:
+            archivo.seek(0)
+            tabla_final = generar_tabla_final(
+                archivo,
+                hoja=hoja_seleccionada,
+                col_actividad=col_actividad,
+                col_fecha=col_fecha,
+                col_horario=col_horario or None,
+                col_total=col_total or None,
+                col_persona_usuario=col_persona,
+            )
+        except Exception as exc:
+            st.error(f"No se pudo generar la tabla: {exc}")
+            st.stop()
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Inscritos", f"{int(tabla_final['Inscritos'].sum()):,}".replace(",", "."))
